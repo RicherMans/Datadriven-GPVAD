@@ -23,6 +23,8 @@ To download and run evaluation just do:
 
 ```bash
 git clone https://github.com/RicherMans/Datadriven-VAD
+cd Datadriven-VAD
+pip3 install -r requirements.txt
 python3 forward.py -w example/example.wav
 ```
 

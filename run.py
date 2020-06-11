@@ -154,19 +154,10 @@ class Runner(object):
                 config_parameters['pretrained']))
 
         model = model.to(DEVICE)
-        if config_parameters['optimizer'] == 'AdaBound':
-            try:
-                import adabound
-                optimizer = adabound.AdaBound(
-                    model.parameters(), **config_parameters['optimizer_args'])
-            except ImportError:
-                config_parameters['optimizer'] = 'Adam'
-                config_parameters['optimizer_args'] = {}
-        else:
-            optimizer = getattr(
-                torch.optim,
-                config_parameters['optimizer'],
-            )(model.parameters(), **config_parameters['optimizer_args'])
+        optimizer = getattr(
+            torch.optim,
+            config_parameters['optimizer'],
+        )(model.parameters(), **config_parameters['optimizer_args'])
 
         utils.pprint_dict(optimizer, logger.info, formatter='pretty')
         utils.pprint_dict(model, logger.info, formatter='pretty')
