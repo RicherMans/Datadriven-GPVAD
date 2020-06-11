@@ -23,8 +23,6 @@ To download and run evaluation just do:
 
 ```bash
 git clone https://github.com/RicherMans/Datadriven-VAD
-wget ddata
-unzip pretrained_models.zip
 python3 forward.py -w example/example.wav
 ```
 
