@@ -1,4 +1,5 @@
 import torch
+import pandas as pd
 import numpy as np
 import argparse
 from h5py import File
@@ -90,16 +91,25 @@ def main():
     encoder = model_dict['encoder']
     logger.info(model)
     pooling_fun = POOLING[args.pool]
+    if Path(args.data).suffix == '.csv':
+        data = pd.read_csv(args.data, sep='\s+')
+        data = data['hdf5path'].unique()
+        assert len(data) == 1, "Only single hdf5 supported yet"
+        data = data[0]
+    else:  #h5 file directly
+        data = args.data
 
-    dataloader = tdata.DataLoader(HDF5Dataset(args.data),
+    logger.info(f"Reading from input file {data}")
+    dataloader = tdata.DataLoader(HDF5Dataset(data),
                                   num_workers=4,
                                   batch_size=1)
     speech_class_idx = np.where(encoder.classes_ == 'Speech')[0]
     non_speech_idx = np.arange(len(encoder.classes_))
     non_speech_idx = np.delete(non_speech_idx, speech_class_idx)
-    with torch.no_grad(), File(
-            args.output, 'w') as store, tqdm(total=len(dataloader)) as pbar, open(args.csvoutput, 'w') as csvfile:
-        abs_output_hdf5 = Path(args.output).absolute()
+    with torch.no_grad(), File(args.hdf5output, 'w') as store, tqdm(
+            total=len(dataloader)) as pbar, open(args.csvoutput,
+                                                 'w') as csvfile:
+        abs_output_hdf5 = Path(args.hdf5output).absolute()
         csvwr = csv.writer(csvfile, delimiter='\t')
         csvwr.writerow(['filename', 'hdf5path'])
         for batch in dataloader:

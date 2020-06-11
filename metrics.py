@@ -178,3 +178,37 @@ def roc(y_true, y_pred, average=None):
 
 def mAP(y_true, y_pred, average=None):
     return skmetrics.average_precision_score(y_true, y_pred, average=average)
+
+
+def precision_recall_fscore_support(y_true, y_pred, average=None):
+    return skmetrics.precision_recall_fscore_support(y_true,
+                                                     y_pred,
+                                                     average=average)
+
+
+def tpr_fpr(y_true, y_pred):
+    fpr, tpr, thresholds = skmetrics.roc_curve(y_true, y_pred)
+    return fpr, tpr, thresholds
+
+
+def obtain_error_rates_alt(y_true, y_pred, threshold=0.5):
+    speech_frame_predictions = binarize(y_pred.reshape(-1, 1),
+                                        threshold=threshold)
+    tn, fp, fn, tp = skmetrics.confusion_matrix(
+        y_true, speech_frame_predictions).ravel()
+
+    p_miss = 100 * (fn / (fn + tp))
+    p_fa = 100 * (fp / (fp + tn))
+    return p_fa, p_miss
+
+
+def confusion_matrix(y_true, y_pred):
+    return skmetrics.confusion_matrix(y_true, y_pred)
+
+
+def obtain_error_rates(y_true, y_pred, threshold=0.5):
+    negatives = y_pred[np.where(y_true == 0)]
+    positives = y_pred[np.where(y_true == 1)]
+    Pfa = np.sum(negatives >= threshold) / negatives.size
+    Pmiss = np.sum(positives < threshold) / positives.size
+    return Pfa, Pmiss

@@ -6,6 +6,7 @@ import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument('dir', type=str)
+parser.add_argument('fmt', default=None,nargs='?')
 args = parser.parse_args()
 
 res = {}
@@ -16,6 +17,8 @@ config = torch.load(root_dir / 'run_config.pth')
 pretrained = config.get('pretrained', None)
 # logs
 augment = config.get('transforms', [])
+label_type = config.get('label_type', 'soft')
+model = config.get('model','CRNN')
 
 
 def get_seg_metrics(line, pointer, seg_type='Segment'):
@@ -68,5 +71,11 @@ for f in root_dir.glob('*.txt'):
     df['data'] = eval_dataset
     df['augment'] = ",".join(augment)
     df['pretrained'] = pretrained
+    df['label_type'] = label_type
+    df['model'] = model
     all_results.append(df)
-print(pd.concat(all_results))
+df = pd.concat(all_results)
+if args.fmt == 'csv':
+    print(df.to_csv())
+else:
+    print(df)

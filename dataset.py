@@ -17,13 +17,22 @@ class TrainHDF5Dataset(tdata.Dataset):
     Indexing is done via the dataframe since we want to preserve some storage
     in cases where oversampling is needed ( pretty likely )
     """
-    def __init__(self, h5filedict: Dict, h5labeldict: Dict, transform=None):
+    def __init__(self,
+                 h5filedict: Dict,
+                 h5labeldict: Dict,
+                 label_type='soft',
+                 transform=None):
         super(TrainHDF5Dataset, self).__init__()
         self._h5filedict = h5filedict
         self._h5labeldict = h5labeldict
+        self._datasetcache = {}
+        self._labelcache = {}
         self._len = len(self._h5labeldict)
         # IF none is passed still use no transform at all
         self._transform = transform
+        assert label_type in ('soft', 'hard', 'softhard', 'hardnoise')
+        self._label_type = label_type
+
         self.idx_to_item = {
             idx: item
             for idx, item in enumerate(self._h5labeldict.keys())
@@ -35,18 +44,41 @@ class TrainHDF5Dataset(tdata.Dataset):
     def __len__(self):
         return self._len
 
-    def __getitem__(self, index):
-        fname = self.idx_to_item[index]
-        h5file = self._h5filedict[fname]
-        labelh5file = self._h5labeldict[fname]
-        with File(h5file, 'r') as datastore, File(labelh5file,
-                                                  'r') as labelstore:
-            data = datastore[fname][()]
-            speech_target = labelstore[f"{fname}/speech"][()]
-            noise_target = labelstore[f"{fname}/noise"][()]
-            speech_clip_target = labelstore[f"{fname}/clipspeech"][()]
-            noise_clip_target = labelstore[f"{fname}/clipnoise"][()]
+    def __del__(self):
+        for k, cache in self._datasetcache.items():
+            cache.close()
+        for k, cache in self._labelcache.items():
+            cache.close()
+
+    def __getitem__(self, index: int):
+        fname: str = self.idx_to_item[index]
+        h5file: str = self._h5filedict[fname]
+        labelh5file: str = self._h5labeldict[fname]
+        if not h5file in self._datasetcache:
+            self._datasetcache[h5file] = File(h5file, 'r')
+        if not labelh5file in self._labelcache:
+            self._labelcache[labelh5file] = File(labelh5file, 'r')
+
+        data = self._datasetcache[h5file][f"{fname}"][()]
+        speech_target = self._labelcache[labelh5file][f"{fname}/speech"][()]
+        noise_target = self._labelcache[labelh5file][f"{fname}/noise"][()]
+        speech_clip_target = self._labelcache[labelh5file][
+            f"{fname}/clipspeech"][()]
+        noise_clip_target = self._labelcache[labelh5file][
+            f"{fname}/clipnoise"][()]
+
         noise_clip_target = np.max(noise_clip_target)  # take max around axis
+        if self._label_type == 'hard':
+            noise_clip_target = noise_clip_target.round()
+            speech_target = speech_target.round()
+            noise_target = noise_target.round()
+            speech_clip_target = speech_clip_target.round()
+        elif self._label_type == 'hardnoise':  # only noise yay
+            noise_clip_target = noise_clip_target.round()
+            noise_target = noise_target.round()
+        elif self._label_type == 'softhard':
+            r = np.random.permutation(noise_target.shape[0] // 4)
+            speech_target[r] = speech_target[r].round()
         target_clip = torch.tensor((noise_clip_target, speech_clip_target))
         data = torch.as_tensor(data).float()
         target_time = torch.as_tensor(
@@ -105,13 +137,16 @@ class EvalH5Dataset(tdata.Dataset):
     Indexing is done via the dataframe since we want to preserve some storage
     in cases where oversampling is needed ( pretty likely )
     """
-    def __init__(self, h5file: File):
+    def __init__(self, h5file: File, fnames=None):
         super(EvalH5Dataset, self).__init__()
         self._h5file = h5file
         self._dataset = None
         # IF none is passed still use no transform at all
         with File(self._h5file, 'r') as store:
-            self.fnames = list(store.keys())
+            if fnames is None:
+                self.fnames = list(store.keys())
+            else:
+                self.fnames = fnames
             self.datadim = store[self.fnames[0]].shape[-1]
             self._len = len(store)
 
@@ -219,9 +254,15 @@ class MultiBalancedSampler(tdata.sampler.Sampler):
                               self._replacement).tolist())
 
 
-def gettraindataloader(h5files, h5labels, transform=None, **dataloader_kwargs):
-    dset = TrainHDF5Dataset(h5files, h5labels, transform=transform)
-
+def gettraindataloader(h5files,
+                       h5labels,
+                       label_type=False,
+                       transform=None,
+                       **dataloader_kwargs):
+    dset = TrainHDF5Dataset(h5files,
+                            h5labels,
+                            label_type=label_type,
+                            transform=transform)
     return tdata.DataLoader(dset,
                             collate_fn=sequential_collate,
                             **dataloader_kwargs)
@@ -230,7 +271,6 @@ def gettraindataloader(h5files, h5labels, transform=None, **dataloader_kwargs):
 def getdataloader(h5file, h5label, fnames, transform=None,
                   **dataloader_kwargs):
     dset = HDF5Dataset(h5file, h5label, fnames, transform=transform)
-
     return tdata.DataLoader(dset,
                             collate_fn=sequential_collate,
                             **dataloader_kwargs)
@@ -263,26 +303,30 @@ def sequential_collate(batches):
 
 if __name__ == '__main__':
     import utils
-    labels_df = pd.read_csv('features/flists/unbalanced.csv',
-                            sep='\t').convert_dtypes()
-    # labels = pd.read_csv('features/flists/unbalanced_raw.csv', sep='\s+')
+    label_df = pd.read_csv(
+        'data/csv_labels/unbalanced_from_unbalanced/unbalanced.csv', sep='\s+')
+    data_df = pd.read_csv("data/data_csv/unbalanced.csv", sep='\s+')
 
-    label_array, encoder = utils.encode_labels(
-        labels=labels_df['event_labels'])
+    merged = data_df.merge(label_df, on='filename')
+    common_idxs = merged['filename']
+    data_df = data_df[data_df['filename'].isin(common_idxs)]
+    label_df = label_df[label_df['filename'].isin(common_idxs)]
 
-    sampler = MinimumOccupancySampler(label_array)
-    print(sampler)
-    # labels['filename'] = labels['filename'].apply(os.path.basename)
-    dloader = getdataloader(
-        {
-            'filename': labels_df['filename'].values,
-            'encoded': label_array
-        },
-        'features/hdf5/unbalanced.h5',
-        shuffle=False,
+    label = utils.df_to_dict(label_df)
+    data = utils.df_to_dict(data_df)
+
+    trainloader = gettraindataloader(
+        h5files=data,
+        h5labels=label,
+        transform=None,
+        label_type='soft',
         batch_size=64,
-        num_workers=4)
+        num_workers=3,
+        shuffle=False,
+    )
 
-    for feat, target, fname in tqdm(dloader):
-        print(target.shape)
-        pass
+    with tqdm(total=len(trainloader)) as pbar:
+        for batch in trainloader:
+            inputs, targets_time, targets_clip, filenames, lengths = batch
+            pbar.set_postfix(inp=inputs.shape)
+            pbar.update()

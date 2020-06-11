@@ -19,7 +19,6 @@ from ignite.metrics import Accuracy, RunningAverage, Precision, Recall
 from ignite.utils import convert_tensor
 from tabulate import tabulate
 from h5py import File
-from sklearn.metrics import confusion_matrix, roc_auc_score, precision_recall_fscore_support
 
 import dataset
 import models
@@ -85,7 +84,7 @@ class Runner(object):
         checkpoint_handler = ModelCheckpoint(
             outputdir,
             'run',
-            n_saved=1,
+            n_saved=3,
             require_empty=False,
             create_dir=True,
             score_function=self._negative_loss,
@@ -95,37 +94,46 @@ class Runner(object):
         # utils.pprint_dict
         utils.pprint_dict(config_parameters, logger.info)
         logger.info("Running on device {}".format(DEVICE))
-        with File(config_parameters['label'], 'r') as label_store:
-            filenames = list(label_store.keys())
+        label_df = pd.read_csv(config_parameters['label'], sep='\s+')
+        data_df = pd.read_csv(config_parameters['data'], sep='\s+')
+        # In case that both are not matching
+        merged = data_df.merge(label_df, on='filename')
+        common_idxs = merged['filename']
+        data_df = data_df[data_df['filename'].isin(common_idxs)]
+        label_df = label_df[label_df['filename'].isin(common_idxs)]
 
-        # These labels are useless, only for mode == stratified
-        train_fnames, cv_fnames = utils.split_train_cv(
-            filenames, **config_parameters['data_args'])
+        train_df, cv_df = utils.split_train_cv(
+            label_df, **config_parameters['data_args'])
+        train_label = utils.df_to_dict(train_df)
+        cv_label = utils.df_to_dict(cv_df)
+        data = utils.df_to_dict(data_df)
 
         transform = utils.parse_transforms(config_parameters['transforms'])
         torch.save(config_parameters, os.path.join(outputdir,
                                                    'run_config.pth'))
         logger.info("Transforms:")
         utils.pprint_dict(transform, logger.info, formatter='pretty')
-        assert len(cv_fnames) > 0, "Fraction a bit too large?"
+        assert len(cv_df) > 0, "Fraction a bit too large?"
 
-        trainloader = dataset.getdataloader(
-            h5file=config_parameters['data'],
-            h5label=config_parameters['label'],
-            fnames=train_fnames,
+        trainloader = dataset.gettraindataloader(
+            h5files=data,
+            h5labels=train_label,
             transform=transform,
+            label_type=config_parameters['label_type'],
             batch_size=config_parameters['batch_size'],
             num_workers=config_parameters['num_workers'],
-            shuffle=True)
+            shuffle=True,
+        )
 
-        cvdataloader = dataset.getdataloader(
-            h5file=config_parameters['data'],
-            h5label=config_parameters['label'],
-            fnames=cv_fnames,
+        cvdataloader = dataset.gettraindataloader(
+            h5files=data,
+            h5labels=cv_label,
+            label_type=config_parameters['label_type'],
             transform=None,
             shuffle=False,
             batch_size=config_parameters['batch_size'],
-            num_workers=config_parameters['num_workers'])
+            num_workers=config_parameters['num_workers'],
+        )
         model = getattr(models, config_parameters['model'],
                         'CRNN')(inputdim=trainloader.dataset.datadim,
                                 outputdim=2,
@@ -224,7 +232,7 @@ class Runner(object):
         pbar = ProgressBar(persist=False)
         pbar.attach(train_engine)
 
-        train_engine.add_event_handler(Events.ITERATION_COMPLETED(every=2000),
+        train_engine.add_event_handler(Events.ITERATION_COMPLETED(every=5000),
                                        compute_metrics)
         train_engine.add_event_handler(Events.EPOCH_COMPLETED, compute_metrics)
 
@@ -242,42 +250,13 @@ class Runner(object):
         train_engine.run(trainloader, max_epochs=config_parameters['epochs'])
         return outputdir
 
-    def train_evaluate(self, config, test_data, test_label, **kwargs):
+    def train_evaluate(self,
+                       config,
+                       tasks=['aurora_clean', 'aurora_noisy', 'dcase18'],
+                       **kwargs):
         experiment_path = self.train(config, **kwargs)
-        import h5py
-        # Get the output time-ratio factor from the model
-        model_parameters = torch.load(
-            Path("{}").glob("run_model*".format(experiment_path))[0],
-            map_location=lambda storage, loc: storage)
-        config_param = torch.load(Path('{}').glob(
-            "run_config*".format(experiment_path))[0],
-                                  map_location=lambda storage, loc: storage)
-        encoder = torch.load('labelencoders/vad.pth')
-        # Dummy to calculate the pooling factor a bit dynamic
-        with h5py.File(test_data, 'r') as store:
-            timedim, datadim = next(iter(store.values())).shape
-        model = getattr(models,
-                        config_param['model'])(inputdim=datadim,
-                                               outputdim=len(encoder.classes_),
-                                               **config_param['model_args'])
-        model.load_state_dict(model_parameters)
-        dummy = torch.randn(1, timedim, datadim)
-        _, time_out = model(dummy)
-        time_ratio = max(0.02, 0.02 * np.round(timedim / time_out.shape[1]))
-        # Parse for evaluation and update original values such as
-        # --data
-        # --label
-        config_parameters = utils.parse_config_or_kwargs(config, **kwargs)
-        threshold = config_parameters.get('threshold', None)
-        postprocessing = config_parameters.get('postprocessing', 'double')
-        window_size = config_parameters.get('window_size', None)
-        self.evaluate(experiment_path,
-                      label=test_label,
-                      data=test_data,
-                      time_ratio=time_ratio,
-                      postprocessing=postprocessing,
-                      threshold=threshold,
-                      window_size=window_size)
+        for task in tasks:
+            self.evaluate(experiment_path, task=task)
 
     def predict_time(
             self,
@@ -287,15 +266,17 @@ class Runner(object):
             **kwargs):  # overwrite --data
 
         experiment_path = Path(experiment_path)
+        if experiment_path.is_file():  # Model is given
+            model_path = experiment_path
+            experiment_path = experiment_path.parent
+        else:
+            model_path = next(Path(experiment_path).glob("run_model*"))
         config = torch.load(next(Path(experiment_path).glob("run_config*")),
                             map_location=lambda storage, loc: storage)
         logger = utils.getfile_outlogger(None)
         # Use previous config, but update data such as kwargs
         config_parameters = dict(config, **kwargs)
         # Default columns to search for in data
-        model_parameters = torch.load(
-            next(Path(experiment_path).glob("run_model*")),
-            map_location=lambda storage, loc: storage)
         encoder = torch.load('labelencoders/vad.pth')
         data = config_parameters['data']
         dset = dataset.EvalH5Dataset(data)
@@ -309,6 +290,8 @@ class Runner(object):
             outputdim=len(encoder.classes_),
             **config_parameters['model_args'])
 
+        model_parameters = torch.load(
+            model_path, map_location=lambda storage, loc: storage)
         model.load_state_dict(model_parameters)
         model = model.to(DEVICE).eval()
 
@@ -411,6 +394,50 @@ class Runner(object):
                 'data': 'data/evaluation/hdf5/aurora_noisy.h5',
                 'label': 'data/evaluation/labels/aurora_noisy_labels.tsv'
             },
+            'dihard_dev': {
+                'data': 'data/evaluation/hdf5/dihard_dev.h5',
+                'label': 'data/evaluation/labels/dihard_dev.csv'
+            },
+            'dihard_eval': {
+                'data': 'data/evaluation/hdf5/dihard_eval.h5',
+                'label': 'data/evaluation/labels/dihard_eval.csv'
+            },
+            'aurora_snr_20': {
+                'data':
+                'data/evaluation/hdf5/aurora_noisy_musan_snr_20.0.hdf5',
+                'label': 'data/evaluation/labels/musan_labels.tsv'
+            },
+            'aurora_snr_15': {
+                'data':
+                'data/evaluation/hdf5/aurora_noisy_musan_snr_15.0.hdf5',
+                'label': 'data/evaluation/labels/musan_labels.tsv'
+            },
+            'aurora_snr_10': {
+                'data':
+                'data/evaluation/hdf5/aurora_noisy_musan_snr_10.0.hdf5',
+                'label': 'data/evaluation/labels/musan_labels.tsv'
+            },
+            'aurora_snr_5': {
+                'data': 'data/evaluation/hdf5/aurora_noisy_musan_snr_5.0.hdf5',
+                'label': 'data/evaluation/labels/musan_labels.tsv'
+            },
+            'aurora_snr_0': {
+                'data': 'data/evaluation/hdf5/aurora_noisy_musan_snr_0.0.hdf5',
+                'label': 'data/evaluation/labels/musan_labels.tsv'
+            },
+            'aurora_snr_-5': {
+                'data':
+                'data/evaluation/hdf5/aurora_noisy_musan_snr_-5.0.hdf5',
+                'label': 'data/evaluation/labels/musan_labels.tsv'
+            },
+            # 'aurora_snr_0_alt':{
+            # 'data' : 'data/evaluation/hdf5/aurora_noisy_musan_snr_0.0.hdf5',
+            # 'label' : 'data/evaluation/labels/musan_wo_speech.tsv'
+            # },
+            # 'aurora_snr_-5_alt':{
+            # 'data' : 'data/evaluation/hdf5/aurora_noisy_musan_snr_-5.0.hdf5',
+            # 'label' : 'data/evaluation/labels/musan_wo_speech.tsv'
+            # },
             'dcase18': {
                 'data': 'data/evaluation/hdf5/dcase18.h5',
                 'label': 'data/evaluation/labels/dcase18.tsv',
@@ -418,15 +445,19 @@ class Runner(object):
         }
         assert task in EVALUATION_DATA, f"--task {'|'.join(list(EVALUATION_DATA.keys()))}"
         experiment_path = Path(experiment_path)
+        if experiment_path.is_file():  # Model is given
+            model_path = experiment_path
+            experiment_path = experiment_path.parent
+        else:
+            model_path = next(Path(experiment_path).glob("run_model*"))
         config = torch.load(next(Path(experiment_path).glob("run_config*")),
-                            map_location=lambda storage, loc: storage)
+                            map_location='cpu')
         logger = utils.getfile_outlogger(None)
         # Use previous config, but update data such as kwargs
         config_parameters = dict(config, **kwargs)
         # Default columns to search for in data
         model_parameters = torch.load(
-            next(Path(experiment_path).glob("run_model*")),
-            map_location=lambda storage, loc: storage)
+            model_path, map_location=lambda storage, loc: storage)
         encoder = torch.load('labelencoders/vad.pth')
         data = EVALUATION_DATA[task]['data']
         label_df = pd.read_csv(EVALUATION_DATA[task]['label'], sep='\s+')
@@ -434,11 +465,11 @@ class Runner(object):
             lambda x: Path(x).name)
         logger.info(f"Label_df shape is {label_df.shape}")
 
-        dset = dataset.EvalH5Dataset(data)
+        dset = dataset.EvalH5Dataset(data, fnames=np.unique(label_df['filename'].values))
 
         dataloader = torch.utils.data.DataLoader(dset,
                                                  batch_size=1,
-                                                 num_workers=8,
+                                                 num_workers=4,
                                                  shuffle=False)
 
         model = getattr(models, config_parameters['model'])(
@@ -472,7 +503,7 @@ class Runner(object):
         speech_frame_predictions, speech_frame_ground_truth, speech_frame_prob_predictions = [], [],[]
         # Using only binary thresholding without filter
         if len(threshold) == 1:
-            postprocessing_method = utils.threshold
+            postprocessing_method = utils.binarize
         else:
             postprocessing_method = utils.double_threshold
         with torch.no_grad(), tqdm(total=len(dataloader),
@@ -540,14 +571,23 @@ class Runner(object):
             speech_frame_prob_predictions, axis=0)
 
         vad_results = []
-        tn, fp, fn, tp = confusion_matrix(speech_frame_ground_truth,
-                                          speech_frame_predictions).ravel()
+        tn, fp, fn, tp = metrics.confusion_matrix(
+            speech_frame_ground_truth, speech_frame_predictions).ravel()
         fer = 100 * ((fp + fn) / len(speech_frame_ground_truth))
+        acc = 100 * ((tp + tn) / (len(speech_frame_ground_truth)))
 
-        auc = roc_auc_score(speech_frame_ground_truth,
-                            speech_frame_prob_predictions) * 100
+        p_miss = 100 * (fn / (fn + tp))
+        p_fa = 100 * (fp / (fp + tn))
+        for i in np.arange(10) / 10.0:
+            mp_fa, mp_miss = metrics.obtain_error_rates(
+                speech_frame_ground_truth, speech_frame_prob_predictions, i)
+            logger.info(
+                f"PFa {100*mp_fa:.2f} Pmiss {100*mp_miss:.2f} t: {i:.1f}")
+
+        auc = metrics.roc(speech_frame_ground_truth,
+                          speech_frame_prob_predictions) * 100
         for avgtype in ('micro', 'macro', 'binary'):
-            precision, recall, f1, _ = precision_recall_fscore_support(
+            precision, recall, f1, _ = metrics.precision_recall_fscore_support(
                 speech_frame_ground_truth,
                 speech_frame_predictions,
                 average=avgtype)
@@ -583,6 +623,9 @@ class Runner(object):
                     file=fp)
             print(f"FER: {fer:.2f}", file=fp)
             print(f"AUC: {auc:.2f}", file=fp)
+            print(f"Pfa: {p_fa:.2f}", file=fp)
+            print(f"Pmiss: {p_miss:.2f}", file=fp)
+            print(f"ACC: {acc:.2f}", file=fp)
         logger.info(f"Results are at {experiment_path}")
         for avgtype, precision, recall, f1 in vad_results:
             print(
@@ -590,6 +633,9 @@ class Runner(object):
             )
         print(f"FER: {fer:.2f}")
         print(f"AUC: {auc:.2f}")
+        print(f"Pfa: {p_fa:.2f}")
+        print(f"Pmiss: {p_miss:.2f}")
+        print(f"ACC: {acc:.2f}")
         print(event_metric)
         print(metric)
 

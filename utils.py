@@ -24,12 +24,10 @@ DEFAULT_ARGS = {
     'outputpath': 'experiments',
     'loss': 'BCELoss',
     'batch_size': 64,
-    'num_workers': 2,
+    'num_workers': 4,
     'epochs': 100,
-    'colname': (
-        'filename', 'encoded'
-    ),  # Columns to fetch data/labels from. Encoded is generated during training
     'transforms': [],
+    'label_type':'soft',
     'scheduler_args': {
         'patience': 3,
         'factor': 0.1,
@@ -89,20 +87,25 @@ def find_contiguous_regions(activity_array):
     return change_indices.reshape((-1, 2))
 
 
-def split_train_cv(a_list: List, frac: float = 0.9, **kwargs):
+def split_train_cv(input_data, frac: float = 0.9, **kwargs):
     """split_train_cv
 
     :param data_frame:
     :param frac:
     :type frac: float
     """
-    N = len(a_list)
-    indicies = np.random.permutation(N)
-    train_size = round(N * frac)
-    cv_size = N -train_size
-    train_idxs, cv_idxs = indicies[:train_size], indicies[cv_size:]
-    a_list = np.array(a_list)
-    return a_list[train_idxs].tolist(), a_list[cv_idxs].tolist()
+    if isinstance(input_data, list):
+        N = len(input_data)
+        indicies = np.random.permutation(N)
+        train_size = round(N * frac)
+        cv_size = N - train_size
+        train_idxs, cv_idxs = indicies[:train_size], indicies[cv_size:]
+        input_data = np.array(input_data)
+        return input_data[train_idxs].tolist(), input_data[cv_idxs].tolist()
+    elif isinstance(input_data, pd.DataFrame):
+        train_df = input_data.sample(frac=frac)
+        cv_df = input_data[~input_data.index.isin(train_df.index)]
+        return train_df, cv_df
 
 
 def parse_transforms(transform_list):
@@ -416,3 +419,6 @@ def rescale_0_1(x):
 
         def min_max_scale(a):
             return pre.minmax_scale(a, axis=0)
+
+def df_to_dict(df, index='filename', value='hdf5path'):
+    return dict(zip(df[index],df[value]))
