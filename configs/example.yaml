@@ -1,0 +1,21 @@
+data: data/softlabels/hdf5/balanced.h5
+label: data/softlabels/csv/balanced.csv
+batch_size: 64
+data_args:
+    mode: Null
+num_workers: 8
+optimizer: AdamW
+optimizer_args:
+    lr: 0.001
+scheduler_args:
+    patience: 10
+    factor: 0.1
+early_stop: 15
+epochs: 15
+itercv: 10000
+save: best
+model: CRNN
+model_args: {}
+outputpath: experiments/
+transforms: [timemask, freqmask]
+loss: FrameBCELoss

@@ -430,14 +430,6 @@ class Runner(object):
                 'data/evaluation/hdf5/aurora_noisy_musan_snr_-5.0.hdf5',
                 'label': 'data/evaluation/labels/musan_labels.tsv'
             },
-            # 'aurora_snr_0_alt':{
-            # 'data' : 'data/evaluation/hdf5/aurora_noisy_musan_snr_0.0.hdf5',
-            # 'label' : 'data/evaluation/labels/musan_wo_speech.tsv'
-            # },
-            # 'aurora_snr_-5_alt':{
-            # 'data' : 'data/evaluation/hdf5/aurora_noisy_musan_snr_-5.0.hdf5',
-            # 'label' : 'data/evaluation/labels/musan_wo_speech.tsv'
-            # },
             'dcase18': {
                 'data': 'data/evaluation/hdf5/dcase18.h5',
                 'label': 'data/evaluation/labels/dcase18.tsv',
