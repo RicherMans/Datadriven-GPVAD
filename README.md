@@ -10,6 +10,13 @@ Repository for the work [Data-driven VAD](www.localhost.com)
 
 ![Speech](figs/sample_speech.png)
 
+
+|              |   Precision |   Recall |     F1 |   AUC |   FER |   Event-F1 |                                                                                                                 
+|:-------------|------------:|---------:|-------:|------:|------:|-----------:|                                                                                                                 
+| aurora_clean |      96.844 |   95.102 | 95.93  | 98.66 |  3.06 |      74.8  |                                                                                                                 
+| aurora_noisy |      90.435 |   92.871 | 91.544 | 97.63 |  6.68 |      54.45 |                                                                                                                 
+| dcase18      |      89.202 |   88.362 | 88.717 | 95.2  | 10.82 |      57.85 |
+
 ## Usage
 
 We provide most of our pretrained models in this repository, including:
