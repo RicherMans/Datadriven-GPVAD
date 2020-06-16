@@ -325,7 +325,10 @@ class Runner(object):
                                  noise=noise_label_pred.shape)
                 pbar.update()
 
-    def predict_clip(self, experiment_path, output_csv, thres=0.5,
+    def predict_clip(self,
+                     experiment_path,
+                     output_csv,
+                     thres=0.5,
                      **kwargs):  # overwrite --data
         import h5py
         from sklearn.preprocessing import binarize
@@ -448,7 +451,9 @@ class Runner(object):
             lambda x: Path(x).name)
         logger.info(f"Label_df shape is {label_df.shape}")
 
-        dset = dataset.EvalH5Dataset(data, fnames=np.unique(label_df['filename'].values))
+        dset = dataset.EvalH5Dataset(data,
+                                     fnames=np.unique(
+                                         label_df['filename'].values))
 
         dataloader = torch.utils.data.DataLoader(dset,
                                                  batch_size=1,
@@ -561,11 +566,16 @@ class Runner(object):
 
         p_miss = 100 * (fn / (fn + tp))
         p_fa = 100 * (fp / (fp + tn))
-        for i in np.arange(10) / 10.0:
+        for i in [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 0.7,0.9]:
             mp_fa, mp_miss = metrics.obtain_error_rates(
                 speech_frame_ground_truth, speech_frame_prob_predictions, i)
+            tn, fp, fn, tp = metrics.confusion_matrix(
+                speech_frame_ground_truth,
+                speech_frame_prob_predictions > i).ravel()
+            sub_fer = 100 * ((fp + fn) / len(speech_frame_ground_truth))
             logger.info(
-                f"PFa {100*mp_fa:.2f} Pmiss {100*mp_miss:.2f} t: {i:.1f}")
+                f"PFa {100*mp_fa:.2f} Pmiss {100*mp_miss:.2f} FER {sub_fer:.2f} t: {i:.2f}"
+            )
 
         auc = metrics.roc(speech_frame_ground_truth,
                           speech_frame_prob_predictions) * 100
