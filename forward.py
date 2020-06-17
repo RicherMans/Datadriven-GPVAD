@@ -93,6 +93,13 @@ MODELS = {
         'pretrained': 'audio2_vox2/model.pth',
         'resolution': 0.02
     },
+    'c1': {
+        'model': crnn,
+        'outputdim': 2,
+        'encoder': 'labelencoders/students.pth',
+        'pretrained': 'c1/model.pth',
+        'resolution': 0.02
+    },
 }
 
 
