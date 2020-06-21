@@ -7,7 +7,7 @@ import torch.nn as nn
 def crnn(inputdim=64, outputdim=527, pretrained_from='balanced.pth'):
     model = CRNN(inputdim, outputdim)
     if pretrained_from:
-        state = torch.load(Path(__file__).parent / pretrained_from,
+        state = torch.load(pretrained_from,
                            map_location='cpu')
         model.load_state_dict(state, strict=False)
     return model
@@ -16,7 +16,7 @@ def crnn(inputdim=64, outputdim=527, pretrained_from='balanced.pth'):
 def cnn10(inputdim=64, outputdim=527, pretrained_from='balanced.pth'):
     model = CNN10(inputdim, outputdim)
     if pretrained_from:
-        state = torch.load(Path(__file__).parent / pretrained_from,
+        state = torch.load(pretrained_from,
                            map_location='cpu')
         model.load_state_dict(state, strict=False)
     return model
