@@ -1,5 +1,5 @@
 # Data driven VAD
-Repository for the work [Data-driven VAD](www.localhost.com)
+Repository for the work [Voice activity detection in the wild: A Data-driven VAD](www.localhost.com).
 
 
 ![Framework](figs/data_driven_framework.png)
