@@ -1,5 +1,5 @@
 # Data driven VAD
-Repository for the work [Voice activity detection in the wild: A Data-driven VAD](www.localhost.com).
+Repository for the work [Voice activity detection in the wild: A data-driven approach using teacher-student training](www.localhost.com).
 
 
 ![Framework](figs/data_driven_framework.png)
@@ -10,6 +10,7 @@ Repository for the work [Voice activity detection in the wild: A Data-driven VAD
 
 ![Speech](figs/sample_speech.png)
 
+Our best model trained on the SRE dataset obtains the following results:
 
 |              |   Precision |   Recall |     F1 |   AUC |   FER |   Event-F1 |                                                                                                                 
 |:-------------|------------:|---------:|-------:|------:|------:|-----------:|                                                                                                                 
