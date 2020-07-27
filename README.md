@@ -4,11 +4,22 @@ Repository for the work [Voice activity detection in the wild: A data-driven app
 
 ![Framework](figs/data_driven_framework.png)
 
+
+## Sample predictions against other methods
+
+![Samples_1](figs/samples_1.png)
+
+![Samples_2](figs/samples_2.png)
+
+## Noise robustness
+
 ![Speech](figs/sample_speech.png)
 
 ![Background](figs/sample_background.png)
 
 ![Speech](figs/sample_speech.png)
+
+## Results
 
 Our best model trained on the SRE dataset obtains the following results:
 
