@@ -62,7 +62,7 @@ We support single file and filelist-batching in our script.
 Obtaining VAD predictions is easy:
 
 ```bash
-python3 forward.py -w /mnt/lustre/sjtu/users/sw121/import/CN-Celeb/data/id00802/speech-03-027.wav
+python3 forward.py -w example/example.wav
 ```
 
 Or if one prefers to do that batch_wise, first prepare a filelist:
