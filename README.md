@@ -25,7 +25,7 @@ Repository for the work [Voice activity detection in the wild: A data-driven app
 
 ## Results
 
-Our best model trained on the SRE dataset obtains the following results:
+Our best model trained on the SRE (V3) dataset obtains the following results:
 
 |              |   Precision |   Recall |     F1 |   AUC |   FER |   Event-F1 |                                                                                                                 
 |:-------------|------------:|---------:|-------:|------:|------:|-----------:|                                                                                                                 
@@ -40,7 +40,7 @@ We provide most of our pretrained models in this repository, including:
 1. Both teachers (T_1, T_2)
 2. Unbalanced audioset pretrained model
 3. Voxceleb 2 pretrained model
-4. Our best submission (SRE trained)
+4. Our best submission (SRE V3 trained)
 
 To download and run evaluation just do:
 
