@@ -11,6 +11,10 @@ Repository for the work [Voice activity detection in the wild: A data-driven app
 
 ![Samples_2](figs/samples_2.png)
 
+![Samples_3](figs/samples_3.png)
+
+![Samples_4](figs/samples_4.png)
+
 ## Noise robustness
 
 ![Speech](figs/sample_speech.png)
