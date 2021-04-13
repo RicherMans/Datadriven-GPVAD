@@ -1,5 +1,5 @@
 # Data driven VAD
-Repository for the work [Voice activity detection in the wild: A data-driven approach using teacher-student training](www.localhost.com).
+Repository for the work in TASLP 2021 [Voice activity detection in the wild: A data-driven approach using teacher-student training](www.localhost.com).
 
 
 ![Framework](figs/data_driven_framework.png)
