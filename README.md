@@ -126,3 +126,32 @@ cd ../; #Go to project root
 # Change config accoringly with input data
 python3 run.py train configs/example.yaml
 ```
+
+## Citation
+
+If youre using this work, please cite it in your publications.
+
+```
+@article{Dinkel2021,
+author = {Dinkel, Heinrich and Wang, Shuai and Xu, Xuenan and Wu, Mengyue and Yu, Kai},
+doi = {10.1109/TASLP.2021.3073596},
+issn = {2329-9290},
+journal = {IEEE/ACM Transactions on Audio, Speech, and Language Processing},
+pages = {1542--1555},
+title = {{Voice Activity Detection in the Wild: A Data-Driven Approach Using Teacher-Student Training}},
+url = {https://ieeexplore.ieee.org/document/9405474/},
+volume = {29},
+year = {2021}
+}
+
+@inproceedings{Dinkel2020,
+  author={Heinrich Dinkel and Yefei Chen and Mengyue Wu and Kai Yu},
+  title={{Voice Activity Detection in the Wild via Weakly Supervised Sound Event Detection}},
+  year=2020,
+  booktitle={Proc. Interspeech 2020},
+  pages={3665--3669},
+  doi={10.21437/Interspeech.2020-0995},
+  url={http://dx.doi.org/10.21437/Interspeech.2020-0995}
+}
+```
+
