@@ -1,4 +1,4 @@
-data: data/softlabels/hdf5/balanced.h5
+data: data/csv_labels/balanced.csv
 label: data/softlabels/csv/balanced.csv
 batch_size: 64
 data_args:
