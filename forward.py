@@ -234,7 +234,7 @@ Please download the pretrained models from and try again or set --pretrained_dir
                     pbar.update()
                     output_dfs.append(pred_label_df)
 
-    full_prediction_df = pd.concat(output_dfs).reset_index()
+    full_prediction_df = pd.concat(output_dfs).sort_values(by='onset',ascending=True).reset_index()
     prediction_df = full_prediction_df[full_prediction_df['event_label'] ==
                                        'Speech']
 
