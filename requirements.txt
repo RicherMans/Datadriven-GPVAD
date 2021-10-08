@@ -16,3 +16,4 @@ ignite==1.1.0
 scikit_learn==0.23.1
 typing==3.7.4.1
 PyYAML==5.4
+numba==0.48
